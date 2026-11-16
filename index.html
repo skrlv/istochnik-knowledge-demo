@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ИСТОЧНИК — демонстрационный помощник по инструкциям. Дословные ответы с источниками, без платного API.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <title>ИСТОЧНИК — ответы, у которых есть основание</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#question">К вопросу</a>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="ИСТОЧНИК, главная"><span class="brand-mark" aria-hidden="true">и</span>ИСТОЧНИК<span class="brand-tag">knowledge desk</span></a>
+    <nav aria-label="Основная навигация"><button class="plain" id="help-open">Как это работает</button><button class="queue-button" id="queue-open">Очередь вопросов <span id="queue-count">0</span></button></nav>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="title">
+      <div><p class="eyebrow"><span class="live-dot"></span> ПОМОЩНИК ПО ВАШИМ ИНСТРУКЦИЯМ</p><h1 id="title">У каждого ответа<br>есть <em>источник.</em></h1><p class="lead">Загрузите документы, задайте вопрос и проверьте<br class="desktop-break"> ответ по исходному фрагменту.</p></div>
+      <aside class="intro-note"><span class="note-icon" aria-hidden="true">↳</span><p>Никаких догадок.<br>Только то, что есть в базе.</p><span>БЕЗ ПЛАТНОГО API</span></aside>
+    </section>
+    <div class="workspace">
+      <aside class="library panel" aria-labelledby="library-title">
+        <div class="panel-heading"><div><p class="eyebrow">01 / КОНТЕКСТ</p><h2 id="library-title">База знаний</h2></div><span id="doc-count" class="count">0</span></div>
+        <p class="small muted">Учебные правила вымышленной компании «Линия». Их можно заменить своими.</p>
+        <label class="upload" for="upload"><span class="upload-plus" aria-hidden="true">+</span><strong>Добавить инструкции</strong><span>TXT или Markdown · UTF-8</span></label>
+        <input class="file-input" id="upload" type="file" accept=".txt,.md" multiple>
+        <input class="file-input" id="replace-upload" type="file" accept=".txt,.md" aria-label="Файл для замены документа">
+        <p class="tiny muted">До 30 документов, 100 000 символов каждый.<br>PDF и Word сначала сохраните как текст.</p>
+        <div id="upload-notice" role="status" class="notice" hidden></div>
+        <div id="document-list" class="document-list"></div>
+        <div class="library-tools"><button id="demo-load" class="text-button">Вернуть пример базы</button><button id="docs-clear" class="text-button danger">Очистить базу</button></div>
+        <div class="privacy"><span aria-hidden="true">◈</span><div><strong id="mode-label">Только в этой вкладке</strong><p id="mode-detail">Документы не отправляются на сервер. Обновление страницы удалит ваши изменения.</p></div></div>
+        <label class="persist-label"><input id="persist" type="checkbox"> Сохранять данные в этом браузере</label>
+        <p class="tiny muted">Без шифрования. Не загружайте секреты и личные данные. <button id="privacy-clear" class="text-button">Удалить сохранённое</button></p>
+      </aside>
+      <section class="assistant panel" aria-labelledby="assistant-title">
+        <div class="panel-heading"><div><p class="eyebrow">02 / ВОПРОС</p><h2 id="assistant-title">Что нужно узнать?</h2></div><span class="mode-pill" id="mode-pill">Локальный поиск</span></div>
+        <form id="ask-form"><label class="sr-only" for="question">Вопрос по инструкциям</label><textarea id="question" rows="3" maxlength="1200" placeholder="Например, как получить доступ в CRM?" required></textarea><div class="ask-footer"><span class="tiny muted">Одна тема — точнее результат</span><button class="primary" id="ask-button" type="submit">Найти ответ <span aria-hidden="true">↗</span></button></div></form>
+        <div class="suggestions" aria-label="Примеры вопросов"><button data-question="Как получить доступ в CRM?">Доступ в CRM <span>↗</span></button><button data-question="Как оформить отпуск?">Оформление отпуска <span>↗</span></button><button data-question="Какой бюджет на отпуск?">Вопрос вне базы <span>↗</span></button></div>
+        <div id="answer-region" role="region" aria-label="Результат поиска" aria-live="polite" aria-atomic="true" tabindex="-1">
+          <div class="answer-placeholder"><div class="page-stack" aria-hidden="true"><span>“</span></div><h3>Ответ начинается с документа</h3><p>Здесь появится выдержка из инструкции<br>и ссылка на её точное место.</p><span class="tiny">Если сведений нет, помощник так и скажет.</span></div>
+        </div>
+        <div class="assistant-bottom"><span class="tiny muted">Поиск по словам и простым синонимам.<br>Это не языковая модель; результат нужно проверять.</span><button id="manual-handoff" class="text-button">Подготовить вопрос человеку →</button></div>
+      </section>
+    </div>
+    <footer class="page-footer"><span>ИСТОЧНИК <span class="muted">/</span> ДЕМОНСТРАЦИОННЫЙ ПРОЕКТ</span><span>База даёт опору. Решение остаётся за человеком.</span></footer>
+  </main>
+  <dialog id="source-dialog" class="wide-dialog"><div class="dialog-header"><div><p class="eyebrow">ИСХОДНЫЙ ДОКУМЕНТ</p><h2 id="source-title">Источник</h2></div><button class="close" data-close aria-label="Закрыть источник">×</button></div><p id="source-meta" class="small muted"></p><div id="source-lines" class="source-lines" tabindex="0" aria-label="Текст документа с номерами строк"></div><p class="tiny muted">Подсвечен фрагмент, использованный в ответе. Разметка документа показана как текст.</p></dialog>
+  <dialog id="handoff-dialog"><div class="dialog-header"><div><p class="eyebrow">03 / ПЕРЕДАЧА ЧЕЛОВЕКУ</p><h2>Проверьте обращение</h2></div><button class="close" data-close aria-label="Закрыть обращение">×</button></div><p class="small muted">Это черновик. Сохранение в очередь и скачивание файла не отправляют сообщение оператору.</p><form id="handoff-form"><label for="ticket-question">Вопрос</label><textarea id="ticket-question" rows="3" maxlength="2000" required></textarea><label for="ticket-answer">Контекст и комментарий</label><textarea id="ticket-answer" rows="4" maxlength="30000"></textarea><label for="ticket-contact">Контакт для ответа <span class="muted">· необязательно</span></label><input id="ticket-contact" maxlength="250" placeholder="Не указывайте настоящий контакт в публичном демо"><label class="persist-label"><input id="ticket-sources" type="checkbox" checked> Приложить показанные фрагменты источников</label><details id="ticket-evidence"><summary>Посмотреть приложенные фрагменты</summary><div id="ticket-source-preview" class="small"></div></details><div id="ticket-notice" class="notice" role="status" hidden></div><p id="ticket-storage" class="tiny muted"></p><div class="dialog-actions"><button type="button" id="ticket-export" class="secondary">Скачать JSON</button><button type="submit" class="primary">Сохранить в очередь</button></div></form></dialog>
+  <dialog id="queue-dialog" class="wide-dialog"><div class="dialog-header"><div><p class="eyebrow">ЛОКАЛЬНАЯ ОЧЕРЕДЬ</p><h2>Вопросы для человека</h2></div><button class="close" data-close aria-label="Закрыть очередь">×</button></div><p id="queue-explainer" class="small muted"></p><div id="queue-notice" class="notice" role="status" hidden></div><div id="ticket-list"></div><div class="dialog-actions"><button id="queue-export" class="secondary">Скачать очередь JSON</button><button id="queue-clear" class="text-button danger">Очистить очередь</button></div></dialog>
+  <dialog id="help-dialog"><div class="dialog-header"><div><p class="eyebrow">КАК ЭТО РАБОТАЕТ</p><h2>Сначала факт, потом ответ</h2></div><button class="close" data-close aria-label="Закрыть справку">×</button></div><ol class="help-steps"><li><strong>Добавьте инструкцию.</strong> TXT или MD в UTF-8. Документ делится по заголовкам Markdown; текст без заголовков считается одним разделом.</li><li><strong>Задайте конкретный вопрос.</strong> Алгоритм ищет совпадения значимых слов, простые формы и небольшой словарь синонимов. Он показывает дословный фрагмент, а не сочиняет ответ.</li><li><strong>Откройте источник.</strong> Ссылка покажет документ и строки. Различающиеся подходящие фрагменты требуют уточнения; алгоритм не решает, какой регламент действующий.</li><li><strong>При необходимости подготовьте обращение.</strong> Измените вопрос и контекст, проверьте цитаты. Сохраните в локальную очередь или скачайте JSON для самостоятельной передачи.</li></ol><h3>Границы демонстрации</h3><p class="small">Это не нейросеть и не универсальный поиск по смыслу. Неизвестные формулировки могут давать «нет ответа». Даже совпадение слов не доказывает, что правило применимо к вашей ситуации. Даты, приоритеты регламентов и сложные противоречия автоматически не проверяются. Разделы длиннее 12 000 символов нужно разбить на меньшие.</p><h3>Где находятся данные</h3><p class="small">Публичное демо обрабатывает документы и вопросы в браузере. По умолчанию они живут в памяти вкладки. По вашему выбору документы и очередь сохраняются без шифрования в localStorage этого браузера. Очистка базы удаляет только документы; очередь содержит отдельные снимки цитат. Кнопка «Удалить сохранённое» удаляет сохранённые документы и браузерную очередь этого проекта.</p><p class="small">В отдельно запущенном локальном режиме вопрос и документы передаются только серверу на этом компьютере, а очередь пишется в файл. Удаление сохранённого в браузере не удаляет серверный файл. Реальный сотрудник, почта, Telegram и CRM не подключены. GitHub Pages раздаёт только статический сайт; хостинг видит обычные запросы за его файлами.</p></dialog>
+</body>
+</html>
