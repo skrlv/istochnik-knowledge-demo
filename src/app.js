@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const KEY = `istochnik-v1:${new URL('../',import.meta.url).pathname}`;
 const MAX_DOC = 100000, MAX_TOTAL = 500000, MAX_DOCS = 30, MAX_TICKETS = 500;
 let documents = [], tickets = [], last = null, lastQuestion = '', draftSources = [], replacementId = null;
-let persistent = false, serverMode = false, busy = false, revision = 0;
+let persistent = false, serverMode = false, busy = false, revision = 0, questionRevision = 0, mutationToken = 0;
 const statusNames = {new:'Новый',in_progress:'В работе',closed:'Закрыт'};
 const el = (tag,cls,text) => {const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;};
 const uid = () => crypto.randomUUID();
@@ -47,7 +47,7 @@ function updateMode(){
   $('queue-clear').hidden=serverMode;
 }
 function invalidate(){
-  revision++;
+  revision++;mutationToken++;
   last=null;lastQuestion='';draftSources=[];
   if($('source-dialog').open)$('source-dialog').close();
   if($('handoff-dialog').open)$('handoff-dialog').close();
@@ -79,15 +79,18 @@ async function readUpload(file,id){
 }
 async function upload(files,replaceId=null){
   if(!files?.length)return;
-  const errors=[];let added=0;
+  const operation=++mutationToken;const errors=[];let added=0;let nextDocuments=[...documents];
   for(const file of files){
     try{
-      const doc=await readUpload(file,replaceId);const candidate=replaceId?documents.map(d=>d.id===replaceId?doc:d):[...documents,doc];
-      if(replaceId&&!documents.some(d=>d.id===replaceId))throw new Error('Документ для замены уже удалён.');
-      documents=validateDocuments(candidate);added++;
+      const doc=await readUpload(file,replaceId);
+      if(operation!==mutationToken)return;
+      const candidate=replaceId?nextDocuments.map(d=>d.id===replaceId?doc:d):[...nextDocuments,doc];
+      if(replaceId&&!nextDocuments.some(d=>d.id===replaceId))throw new Error('Документ для замены уже удалён.');
+      nextDocuments=validateDocuments(candidate);added++;
     }catch(e){errors.push(`${file.name}: ${fail(e)}`);}
   }
-  if(added)changed();
+  if(operation!==mutationToken)return;
+  if(added){documents=nextDocuments;changed();}
   showNotice('upload-notice',[added?`${replaceId?'Заменено':'Добавлено'} документов: ${added}.`:null,...errors].filter(Boolean).join('\n'));
 }
 function sourceURL(s){return `#source=${encodeURIComponent(s.documentId)}&section=${encodeURIComponent(s.sectionId||'')}`;}
@@ -106,9 +109,9 @@ async function api(url,body,method='POST'){
 async function ask(){
   if(busy)return;if(!$('ask-form').reportValidity())return;
   const question=$('question').value.trim();if(!question){$('question').setCustomValidity('Напишите содержательный вопрос.');$('question').reportValidity();return;}
-  busy=true;$('ask-button').disabled=true;last=null;lastQuestion='';const requestRevision=revision;
-  try{const r=serverMode?await api('./api/answer',{question,documents:documents.map(rawDoc)}):answerQuestion(question,documents);if(requestRevision!==revision)return;last=r;lastQuestion=question;renderResult(r);}
-  catch(e){if(requestRevision===revision)$('answer-region').replaceChildren(el('p','notice',`Поиск не выполнен. ${fail(e)}`));}
+  busy=true;$('ask-button').disabled=true;last=null;lastQuestion='';const requestRevision=revision,requestQuestion=questionRevision;
+  try{const r=serverMode?await api('./api/answer',{question,documents:documents.map(rawDoc)}):answerQuestion(question,documents);if(requestRevision!==revision||requestQuestion!==questionRevision||$('question').value.trim()!==question)return;last=r;lastQuestion=question;renderResult(r);}
+  catch(e){if(requestRevision===revision&&requestQuestion===questionRevision)$('answer-region').replaceChildren(el('p','notice',`Поиск не выполнен. ${fail(e)}`));}
   finally{busy=false;$('ask-button').disabled=false;}
 }
 function openSource(id,sectionId){
@@ -156,10 +159,11 @@ function renderQueue(){
 async function openQueue(){showNotice('queue-notice','');if(serverMode){try{const data=await api('./api/tickets',null,'GET');tickets=validateTickets(data.tickets);}catch(e){showNotice('queue-notice',fail(e));}}renderQueue();showDialog('queue-dialog');}
 async function loadDemo(){const response=await fetch('./data/demo-documents.json');if(!response.ok)throw new Error('Не удалось загрузить пример. Можно загрузить свой TXT или MD.');return validateDocuments(await response.json());}
 
-$('ask-form').addEventListener('submit',e=>{e.preventDefault();ask();});$('question').addEventListener('input',()=>{$('question').setCustomValidity('');});
-for(const button of document.querySelectorAll('[data-question]'))button.addEventListener('click',()=>{$('question').value=button.dataset.question;$('question').setCustomValidity('');ask();});
+function questionChanged(){questionRevision++;$('question').setCustomValidity('');last=null;lastQuestion='';draftSources=[];if($('answer-region').querySelector('.result')||busy){const block=el('div','answer-placeholder');block.append(el('h3','','Вопрос изменён'),el('p','','Нажмите «Найти ответ», чтобы проверить новый вопрос.'));$('answer-region').replaceChildren(block);}}
+$('ask-form').addEventListener('submit',e=>{e.preventDefault();ask();});$('question').addEventListener('input',questionChanged);
+for(const button of document.querySelectorAll('[data-question]'))button.addEventListener('click',()=>{$('question').value=button.dataset.question;questionChanged();ask();});
 $('upload').addEventListener('change',async e=>{await upload(e.target.files);e.target.value='';});$('replace-upload').addEventListener('change',async e=>{await upload(e.target.files,replacementId);e.target.value='';replacementId=null;});
-$('demo-load').addEventListener('click',async()=>{if(!confirm('Заменить текущую базу четырьмя учебными документами? Снимки в очереди останутся.'))return;try{documents=await loadDemo();changed();showNotice('upload-notice','Учебная база восстановлена.');}catch(e){showNotice('upload-notice',fail(e));}});
+$('demo-load').addEventListener('click',async()=>{if(!confirm('Заменить текущую базу четырьмя учебными документами? Снимки в очереди останутся.'))return;const operation=++mutationToken;try{const demo=await loadDemo();if(operation!==mutationToken)return;documents=demo;changed();showNotice('upload-notice','Учебная база восстановлена.');}catch(e){if(operation===mutationToken)showNotice('upload-notice',fail(e));}});
 $('docs-clear').addEventListener('click',()=>{if(confirm('Очистить все документы? Снимки цитат в очереди останутся отдельно.')){documents=[];changed();showNotice('upload-notice','База очищена.');}});
 $('persist').addEventListener('change',()=>{persistent=$('persist').checked;if(persistent)persist();else{try{localStorage.removeItem(KEY);}catch{} }updateMode();});
 $('privacy-clear').addEventListener('click',()=>{if(!confirm('Удалить сохранённые данные браузера и очистить документы и браузерную очередь этого проекта? Серверный файл и скачанные JSON останутся.'))return;try{localStorage.removeItem(KEY);}catch{showNotice('upload-notice','Браузер не разрешил очистку хранилища. Проверьте настройки сайта.');return;}persistent=false;$('persist').checked=false;documents=[];if(!serverMode)tickets=[];changed();renderQueue();updateMode();showNotice('upload-notice','Данные этого проекта в браузере удалены.');});
