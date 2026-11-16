@@ -66,7 +66,9 @@ function validateDocuments(documents) {
   const ids = new Set();
   return documents.map((document, index) => {
     if (!isRecord(document)) throw new ApiError(400, 'Некорректный документ.');
-    const text = safeText(document.text, 'Текст документа', 100_000);
+    // Validate content and limits without shifting source lines or trimming quoted whitespace.
+    safeText(document.text, 'Текст документа', 100_000);
+    const text = document.text;
     total += text.length;
     if (total > 500_000) throw new ApiError(413, 'Суммарный объём документов превышает 500 000 символов.');
     const id = safeText(document.id ?? `document-${index + 1}`, 'ID документа', 100);

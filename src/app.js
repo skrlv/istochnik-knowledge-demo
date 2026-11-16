@@ -180,7 +180,11 @@ async function init(){
   let restored=false;
   try{const saved=localStorage.getItem(KEY);if(saved){const data=JSON.parse(saved);if(data.version!==1)throw new Error('Неизвестная версия сохранения.');documents=validateDocuments(data.documents);tickets=validateTickets(data.tickets);persistent=true;restored=true;$('persist').checked=true;}}
   catch{persistent=false;showNotice('upload-notice','Сохранённые данные недоступны или повреждены. Они не использованы. Можно удалить их кнопкой «Удалить сохранённое».');}
-  if(!restored){try{documents=await loadDemo();}catch(e){showNotice('upload-notice',fail(e));}}
+  if(!restored){
+    const initialMutation=mutationToken;
+    try{const demo=await loadDemo();if(initialMutation===mutationToken)documents=demo;}
+    catch(e){if(initialMutation===mutationToken)showNotice('upload-notice',fail(e));}
+  }
   if(['localhost','127.0.0.1','[::1]'].includes(location.hostname)){try{const r=await api('./api/health',null,'GET');serverMode=r.ok===true&&r.mode==='local-server';if(serverMode){tickets=validateTickets((await api('./api/tickets',null,'GET')).tickets);}}catch{/* Static local preview stays in browser mode. */}}
   renderDocs();renderQueue();updateMode();routeSource();
 }

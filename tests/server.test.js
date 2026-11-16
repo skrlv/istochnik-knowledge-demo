@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import http from 'node:http';
 import { createServer } from '../server/server.js';
+import { answerQuestion, parseDocument } from '../src/engine.js';
 
 let temporary, rootDir, dataDir, server, base, createdId;
 const start = async options => {
@@ -204,6 +205,63 @@ test('answer API calls the shared engine and returns exact source', async () => 
   assert.equal(result.body.status, 'answered');
   assert.ok(result.body.sources.length > 0);
   assert.ok(result.body.sources[0].quote.includes('каждые 30 дней'));
+});
+
+test('answer API preserves exact source lines and snapshot whitespace through restart', async () => {
+  // Own server and storage make this regression independent of the shared queue fixtures.
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'istochnik-source-lines-'));
+  let instance;
+  try {
+    const site = path.join(directory, 'site');
+    const storage = path.join(directory, 'queue');
+    await mkdir(site);
+    await writeFile(path.join(site, 'index.html'), '<!doctype html><title>Source regression</title>');
+    instance = await start({ rootDir: site, dataDir: storage });
+    let origin = `http://127.0.0.1:${instance.address().port}`;
+    const request = async (route, body) => {
+      const response = await fetch(origin + route, body === undefined ? {} : post(body));
+      return { status: response.status, body: await response.json() };
+    };
+    const question = 'Как получить доступ в лабораторию?';
+    const fixtures = [
+      { name: 'leading-blank-lf', text: '\n\n# Доступ в лабораторию\n\nДля доступа в лабораторию подайте заявку куратору.\n', quote: 'Для доступа в лабораторию подайте заявку куратору.', endLine: 5 },
+      { name: 'leading-blank-crlf-spaces', text: '\r\n\r\n# Доступ в лабораторию\r\n\r\n  Для доступа в лабораторию подайте заявку куратору.  \r\n\tУкажите номер лаборатории и срок доступа.\t\r\n\r\n', quote: '  Для доступа в лабораторию подайте заявку куратору.  \n\tУкажите номер лаборатории и срок доступа.\t', endLine: 6 },
+      { name: 'leading-blank-cr-spaces', text: '\r\r# Доступ в лабораторию\r\r\tДля доступа в лабораторию подайте заявку куратору.  \r  Укажите номер лаборатории и срок доступа.\t\r', quote: '\tДля доступа в лабораторию подайте заявку куратору.  \n  Укажите номер лаборатории и срок доступа.\t', endLine: 6 },
+    ];
+    const snapshots = new Map();
+    for (const fixture of fixtures) {
+      const document = { id: fixture.name, title: 'Регрессия источника', filename: `${fixture.name}.md`, text: fixture.text };
+      const browser = answerQuestion(question, [parseDocument(document)]);
+      assert.equal(browser.status, 'answered', fixture.name);
+      assert.equal(browser.sources[0].startLine, 5, fixture.name);
+      assert.equal(browser.sources[0].endLine, fixture.endLine, fixture.name);
+      assert.equal(browser.sources[0].quote, fixture.quote, fixture.name);
+      const api = await request('/api/answer', { question, documents: [document] });
+      assert.equal(api.status, 200, fixture.name);
+      assert.deepEqual(api.body, browser, fixture.name);
+      const source = api.body.sources[0];
+      const originalLines = document.text.replace(/\r\n?/g, '\n').split('\n');
+      assert.equal(originalLines.slice(source.startLine - 1, source.endLine).join('\n'), source.quote, fixture.name);
+      const saved = await request('/api/tickets', { question, answer: api.body.answer, sources: api.body.sources });
+      assert.equal(saved.status, 201, fixture.name);
+      assert.deepEqual(saved.body.ticket.sources, browser.sources, fixture.name);
+      snapshots.set(saved.body.ticket.id, browser.sources);
+    }
+    const assertSnapshots = result => {
+      assert.equal(result.status, 200);
+      assert.equal(result.body.tickets.length, fixtures.length);
+      for (const ticket of result.body.tickets) assert.deepEqual(ticket.sources, snapshots.get(ticket.id));
+    };
+    assertSnapshots(await request('/api/tickets'));
+    await close(instance);
+    instance = undefined;
+    instance = await start({ rootDir: site, dataDir: storage });
+    origin = `http://127.0.0.1:${instance.address().port}`;
+    assertSnapshots(await request('/api/tickets'));
+  } finally {
+    if (instance) await close(instance);
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('answer API validates uploads and cannot trust forged sections', async () => {
